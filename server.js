@@ -5,100 +5,106 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-let conversas = {};
+// memória simples
+let clientes = {};
 
-// FUNÇÃO PIX SIMPLES (simulação agora - depois ligamos no PagBank)
-function gerarPix(valor) {
-  return `PIX-COPIA-E-COLA-VALOR-${valor}`;
+const PRECO = 2;
+const PIX_CHAVE = '88994943632';
+
+// gerar pix simples com valor
+function gerarMensagemPix(valor) {
+  return `💰 Total: R$ ${valor}
+
+🔐 PIX:
+Chave: ${PIX_CHAVE}
+
+⚠️ Pague exatamente o valor acima.
+Após pagar, envie o comprovante.`;
 }
 
-// Rota principal
-app.get('/', (req, res) => {
-  res.send('Sistema Reino da Sorte ONLINE ✅');
-});
+// fluxo principal
+function fluxo(numero, msg) {
 
-// Rota teste
-app.get('/teste', (req, res) => {
-  res.json({ ok: true });
-});
-
-// SIMULADOR
-app.get('/simular', (req, res) => {
-  const numero = req.query.numero || 'cliente1';
-  const mensagem = req.query.msg || '';
-
-  let estado = conversas[numero] || { etapa: 'inicio' };
-  let resposta = '';
-
-  if (estado.etapa === 'inicio') {
-    resposta = '🎟️ Quantos bilhetes você deseja comprar?';
-    estado.etapa = 'quantidade';
+  if (!clientes[numero]) {
+    clientes[numero] = { etapa: 'inicio' };
   }
 
-  else if (estado.etapa === 'quantidade') {
-    const qtd = parseInt(mensagem);
+  let c = clientes[numero];
+
+  // iniciar
+  if (c.etapa === 'inicio') {
+    c.etapa = 'quantidade';
+    return `🍀 REINO DA SORTE 🍀
+
+Quantos bilhetes deseja comprar?
+
+Cada bilhete custa R$ 2,00`;
+  }
+
+  // quantidade
+  if (c.etapa === 'quantidade') {
+
+    const num = msg.match(/\d+/);
+    const qtd = num ? parseInt(num[0]) : 0;
 
     if (!qtd || qtd <= 0) {
-      resposta = 'Digite um número válido de bilhetes.';
-    } else {
-      const valor = qtd * 2;
-
-      estado.qtd = qtd;
-      estado.valor = valor;
-
-      const pix = gerarPix(valor);
-
-      resposta =
-`💰 Total: R$ ${valor}
-
-🔐 PIX (copia e cola):
-${pix}
-
-Após pagar, envie o comprovante.`;
-
-      estado.etapa = 'aguardando_pagamento';
+      return 'Digite a quantidade de bilhetes (ex: 5)';
     }
+
+    const valor = qtd * PRECO;
+
+    c.qtd = qtd;
+    c.valor = valor;
+    c.etapa = 'pagamento';
+
+    return gerarMensagemPix(valor);
   }
 
-  else if (estado.etapa === 'aguardando_pagamento') {
-    resposta =
-`📄 Comprovante recebido!
+  // comprovante
+  if (c.etapa === 'pagamento') {
+    c.etapa = 'dados';
 
-Agora envie seus dados:
+    return `📄 Comprovante recebido!
+
+Agora envie:
 
 NOME:
 TELEFONE:`;
-
-    estado.etapa = 'dados';
   }
 
-  else if (estado.etapa === 'dados') {
-    resposta =
-`✅ Pedido em análise.
+  // dados
+  if (c.etapa === 'dados') {
 
-Um atendente vai finalizar sua compra.
+    delete clientes[numero];
 
-🍀 Reino da Sorte agradece sua compra!`;
-    
-    delete conversas[numero]; // encerra conversa
+    return `✅ Pedido enviado para o atendente.
+
+🍀 Boa sorte!`;
   }
 
-  conversas[numero] = estado;
+  return 'Erro no fluxo.';
+}
+
+// rota simulação
+app.get('/simular', (req, res) => {
+
+  const numero = req.query.numero || '1';
+  const msg = req.query.msg || '';
+
+  const resposta = fluxo(numero, msg);
 
   res.json({
     cliente: numero,
-    mensagem_recebida: mensagem,
-    resposta,
-    estado
+    mensagem: msg,
+    resposta
   });
 });
 
-// Webhook (futuro WhatsApp)
-app.post('/webhook', (req, res) => {
-  console.log('Recebido:', req.body);
-  res.sendStatus(200);
+// rota principal
+app.get('/', (req, res) => {
+  res.send('BOT REINO ONLINE ✅');
 });
 
 app.listen(PORT, () => {
-  console.log('Servidor rodando na porta ' + PORT);
+  console.log('Servidor rodando');
 });
